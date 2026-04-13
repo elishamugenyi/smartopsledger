@@ -20,6 +20,17 @@ export async function verifyPassword(password: string, passwordHash: string) {
   return bcrypt.compare(password, passwordHash);
 }
 
+const OTP_BCRYPT_ROUNDS = 10;
+
+/** Hash a 6-digit OTP before persisting (short-lived codes use slightly lower cost than passwords). */
+export async function hashOtpCode(code: string) {
+  return bcrypt.hash(code, OTP_BCRYPT_ROUNDS);
+}
+
+export async function verifyOtpCode(code: string, codeHash: string) {
+  return bcrypt.compare(code, codeHash);
+}
+
 export async function createSession(userId: string) {
   const sessionToken = crypto.randomBytes(32).toString("hex");
   const expires = new Date(

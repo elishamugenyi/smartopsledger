@@ -1,39 +1,39 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f8f4ef;
-  --foreground: #17212b;
+  --background: #ffffff;
+  --foreground: #0b0b0b;
   --card: #ffffff;
-  --card-foreground: #17212b;
+  --card-foreground: #0b0b0b;
   --popover: #ffffff;
-  --popover-foreground: #17212b;
-  --primary: #0f766e;
+  --popover-foreground: #0b0b0b;
+  --primary: #17a34a;
   --primary-foreground: #ffffff;
-  --secondary: #20324a;
+  --secondary: #0b0b0b;
   --secondary-foreground: #ffffff;
-  --muted: #ece6dd;
-  --muted-foreground: #66707c;
-  --accent: #f3b24b;
-  --accent-foreground: #17212b;
-  --border: #dbd4ca;
-  --input: #dbd4ca;
+  --muted: #f3f4f6;
+  --muted-foreground: #3f3f46;
+  --accent: #17a34a;
+  --accent-foreground: #ffffff;
+  --border: #d4d4d8;
+  --input: #d4d4d8;
   --input-background: #ffffff;
-  --switch-background: #b7c4c0;
-  --ring: #0f766e;
+  --switch-background: #a1a1aa;
+  --ring: #17a34a;
   --radius: 1.25rem;
-  --chart-1: #0f766e;
-  --chart-2: #20324a;
-  --chart-3: #f3b24b;
-  --chart-4: #6b8d7d;
-  --chart-5: #a17b4f;
+  --chart-1: #17a34a;
+  --chart-2: #0b0b0b;
+  --chart-3: #22c55e;
+  --chart-4: #15803d;
+  --chart-5: #27272a;
   --sidebar: #ffffff;
-  --sidebar-foreground: #17212b;
-  --sidebar-primary: #0f766e;
+  --sidebar-foreground: #0b0b0b;
+  --sidebar-primary: #17a34a;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #ece6dd;
-  --sidebar-accent-foreground: #17212b;
-  --sidebar-border: #dbd4ca;
-  --sidebar-ring: #0f766e;
+  --sidebar-accent: #f3f4f6;
+  --sidebar-accent-foreground: #0b0b0b;
+  --sidebar-border: #d4d4d8;
+  --sidebar-ring: #17a34a;
 }
 
 @theme inline {
@@ -78,8 +78,8 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
   background-image:
-    radial-gradient(circle at top, rgba(15, 118, 110, 0.08), transparent 30%),
-    radial-gradient(circle at bottom right, rgba(243, 178, 75, 0.09), transparent 28%);
+    radial-gradient(circle at top, rgba(23, 163, 74, 0.09), transparent 34%),
+    radial-gradient(circle at bottom right, rgba(0, 0, 0, 0.05), transparent 30%);
   background-attachment: fixed;
 }
 

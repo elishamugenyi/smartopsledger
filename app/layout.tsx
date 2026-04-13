@@ -4,8 +4,9 @@ import { SiteHeader } from "@/app/components/site-header";
 import { SiteFooter } from "@/app/components/site-footer";
 
 export const metadata: Metadata = {
-  title: "Smart Stop Ledger",
-  description: "A modern ecommerce storefront frontend for Smart Stop Ledger.",
+  title: "SmartOps Ledger",
+  description:
+    "SmartOps Ledger helps businesses run secure, modern operational accounting workflows.",
 };
 
 export default function RootLayout({

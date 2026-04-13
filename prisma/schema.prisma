@@ -66,6 +66,21 @@ model User {
 
   accounts             Account[]
   sessions             Session[]
+  passwordResetOtps    PasswordResetOtp[]
+}
+
+/// One-time codes for password reset. `codeHash` is a bcrypt hash of the 6-digit OTP (never store plaintext).
+model PasswordResetOtp {
+  id         String   @id @default(cuid())
+  userId     String
+  codeHash   String
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 model Account {
