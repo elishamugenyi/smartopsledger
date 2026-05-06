@@ -37,8 +37,8 @@ async function hasStripeActiveSubscription(userId: string): Promise<boolean> {
     const rows = await prisma.$queryRaw<Array<{ has_active: boolean }>>`
       SELECT EXISTS (
         SELECT 1
-        FROM stripe.user_stripe_customers usc
-        JOIN stripe.subscriptions s
+        FROM stripe.user_stripe_customers_map usc
+        JOIN stripe.subscriptions s 
           ON s.customer = usc.stripe_customer_id
         WHERE usc.user_id = ${userId}
           AND LOWER(COALESCE(s.status, '')) IN ('active', 'trialing')
