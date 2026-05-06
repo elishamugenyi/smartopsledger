@@ -1,14 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getPrimaryOrganizationIdForUser } from "@/lib/organization";
+import { getUserTenantContext } from "@/lib/tenant-access";
 
 export async function GET(req: NextRequest) {
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
 
-  const organizationId = await getPrimaryOrganizationIdForUser(auth.user.id);
-  if (!organizationId) {
+  const { organizationIds } = await getUserTenantContext(auth.user.id);
+  if (organizationIds.length === 0) {
     return NextResponse.json(
       {
         error: "ORGANIZATION_REQUIRED",
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
   }
 
   const entries = await prisma.expense.findMany({
-    where: { organizationId },
+    where: { organizationId: { in: organizationIds } },
     select: {
       id: true,
       amount: true,

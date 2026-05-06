@@ -14,10 +14,26 @@ async function updateUserSubscriptionStatus(subscription: Stripe.Subscription) {
   const customerId = getCustomerId(subscription.customer);
   if (!customerId) return;
 
-  await prisma.user.updateMany({
+  const updateResult = await prisma.user.updateMany({
     where: { stripeCustomerId: customerId },
     data: { subscriptionStatus: subscription.status },
   });
+
+  if (updateResult.count > 0) return;
+
+  // Fallback to usebilling's mapping table when local stripeCustomerId is not set.
+  await prisma.$executeRaw`
+    UPDATE public."User" u
+    SET
+      "stripeCustomerId" = ${customerId},
+      "subscriptionStatus" = ${subscription.status},
+      "updatedAt" = NOW()
+    WHERE u.id IN (
+      SELECT usc.user_id
+      FROM stripe.user_stripe_customers_map usc
+      WHERE usc.stripe_customer_id = ${customerId}
+    )
+  `;
 }
 
 // Initialize once, use everywhere (for credits/subscriptions API access)

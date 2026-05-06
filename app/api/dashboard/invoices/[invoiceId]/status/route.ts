@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getPrimaryOrganizationIdForUser } from "@/lib/organization";
+import { getUserTenantContext } from "@/lib/tenant-access";
 
 type UpdateInvoiceStatusBody = {
   status?: "DRAFT" | "SENT" | "VIEWED" | "PAID" | "OVERDUE" | "CANCELLED";
@@ -31,8 +31,8 @@ export async function PATCH(
     return NextResponse.json({ error: "VALID_STATUS_REQUIRED" }, { status: 400 });
   }
 
-  const organizationId = await getPrimaryOrganizationIdForUser(auth.user.id);
-  if (!organizationId) {
+  const { organizationIds } = await getUserTenantContext(auth.user.id);
+  if (organizationIds.length === 0) {
     return NextResponse.json(
       {
         error: "ORGANIZATION_REQUIRED",
@@ -42,21 +42,20 @@ export async function PATCH(
     );
   }
 
-  const invoice = await prisma.invoice.findFirst({
-    where: { id: invoiceId, organizationId },
-    select: { id: true },
-  });
-
-  if (!invoice) {
-    return NextResponse.json({ error: "INVOICE_NOT_FOUND" }, { status: 404 });
-  }
-
-  const updated = await prisma.invoice.update({
-    where: { id: invoiceId },
+  const updateResult = await prisma.invoice.updateMany({
+    where: { id: invoiceId, organizationId: { in: organizationIds } },
     data: {
       status: nextStatus as "DRAFT" | "SENT" | "VIEWED" | "PAID" | "OVERDUE" | "CANCELLED",
       paidAt: nextStatus === "PAID" ? new Date() : null,
     },
+  });
+
+  if (updateResult.count === 0) {
+    return NextResponse.json({ error: "INVOICE_NOT_FOUND" }, { status: 404 });
+  }
+
+  const updated = await prisma.invoice.findFirst({
+    where: { id: invoiceId, organizationId: { in: organizationIds } },
     select: {
       id: true,
       status: true,
@@ -64,6 +63,10 @@ export async function PATCH(
       updatedAt: true,
     },
   });
+
+  if (!updated) {
+    return NextResponse.json({ error: "INVOICE_NOT_FOUND" }, { status: 404 });
+  }
 
   return NextResponse.json({ invoice: updated }, { status: 200 });
 }

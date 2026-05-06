@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getPrimaryOrganizationIdForUser } from "@/lib/organization";
+import { getUserTenantContext } from "@/lib/tenant-access";
 
 type CreateExpenseBody = {
   amount?: number;
@@ -13,8 +13,8 @@ export async function GET(req: NextRequest) {
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
 
-  const organizationId = await getPrimaryOrganizationIdForUser(auth.user.id);
-  if (!organizationId) {
+  const { organizationIds, primaryOrganizationId } = await getUserTenantContext(auth.user.id);
+  if (!primaryOrganizationId || organizationIds.length === 0) {
     return NextResponse.json(
       {
         error: "ORGANIZATION_REQUIRED",
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
   }
 
   const entries = await prisma.expense.findMany({
-    where: { organizationId },
+    where: { organizationId: { in: organizationIds } },
     orderBy: { createdAt: "desc" },
   });
 
@@ -51,8 +51,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const organizationId = await getPrimaryOrganizationIdForUser(auth.user.id);
-  if (!organizationId) {
+  const { primaryOrganizationId } = await getUserTenantContext(auth.user.id);
+  if (!primaryOrganizationId) {
     return NextResponse.json(
       {
         error: "ORGANIZATION_REQUIRED",
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
 
   const entry = await prisma.expense.create({
     data: {
-      organizationId,
+      organizationId: primaryOrganizationId,
       amount: Math.round(amount * 100),
       category,
       description: description || null,

@@ -32,6 +32,26 @@ function calculateTrialInfo(createdAt: Date) {
   };
 }
 
+async function hasStripeActiveSubscription(userId: string): Promise<boolean> {
+  try {
+    const rows = await prisma.$queryRaw<Array<{ has_active: boolean }>>`
+      SELECT EXISTS (
+        SELECT 1
+        FROM stripe.user_stripe_customers usc
+        JOIN stripe.subscriptions s
+          ON s.customer = usc.stripe_customer_id
+        WHERE usc.user_id = ${userId}
+          AND LOWER(COALESCE(s.status, '')) IN ('active', 'trialing')
+      ) AS has_active
+    `;
+
+    return rows[0]?.has_active ?? false;
+  } catch {
+    // Keep access checks functional even if Stripe mirror tables are unavailable.
+    return false;
+  }
+}
+
 export async function hasActiveSubscription(userId: string): Promise<boolean> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -42,9 +62,12 @@ export async function hasActiveSubscription(userId: string): Promise<boolean> {
 
   if (!user) return false;
 
-  return ACTIVE_SUBSCRIPTION_STATUSES.has(
+  const hasLocalStatus = ACTIVE_SUBSCRIPTION_STATUSES.has(
     normalizeStatus(user.subscriptionStatus),
   );
+  if (hasLocalStatus) return true;
+
+  return hasStripeActiveSubscription(userId);
 }
 
 async function hasOrganizationOwnerSubscription(userId: string) {
@@ -55,6 +78,7 @@ async function hasOrganizationOwnerSubscription(userId: string) {
         select: {
           owner: {
             select: {
+              id: true,
               subscriptionStatus: true,
             },
           },
@@ -63,11 +87,18 @@ async function hasOrganizationOwnerSubscription(userId: string) {
     },
   });
 
-  return memberships.some((membership) =>
-    ACTIVE_SUBSCRIPTION_STATUSES.has(
+  for (const membership of memberships) {
+    const ownerHasLocalStatus = ACTIVE_SUBSCRIPTION_STATUSES.has(
       normalizeStatus(membership.organization.owner.subscriptionStatus),
-    ),
-  );
+    );
+    if (ownerHasLocalStatus) return true;
+
+    if (await hasStripeActiveSubscription(membership.organization.owner.id)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 export async function getDashboardAccessStateByUserId(
@@ -86,8 +117,11 @@ export async function getDashboardAccessStateByUserId(
   const hasOwnSubscription = ACTIVE_SUBSCRIPTION_STATUSES.has(
     normalizeStatus(user.subscriptionStatus),
   );
+  const hasOwnStripeSubscription = hasOwnSubscription
+    ? true
+    : await hasStripeActiveSubscription(userId);
   const hasOwnerSubscription = await hasOrganizationOwnerSubscription(userId);
-  const hasSubscription = hasOwnSubscription || hasOwnerSubscription;
+  const hasSubscription = hasOwnStripeSubscription || hasOwnerSubscription;
   const trialInfo = calculateTrialInfo(user.createdAt);
 
   return {
