@@ -13,11 +13,11 @@ export function AuthShell({ title, subtitle, children }: AuthShellProps) {
       <div className="overflow-hidden rounded-3xl border border-border/70 bg-card shadow-xl shadow-secondary/20 lg:min-h-[620px]">
         <div className="flex min-h-[260px] items-center justify-center bg-white p-8">
           <Image
-            src="/smartops_logo.png"
+            src="/smartops_joined.png"
             alt="SmartOps Ledger"
-            width={420}
-            height={126}
-            className="h-24 w-auto sm:h-28"
+            width={600}
+            height={329}
+            className="h-auto w-full max-w-sm"
           />
         </div>
         <div className="h-full bg-secondary p-8 text-white">

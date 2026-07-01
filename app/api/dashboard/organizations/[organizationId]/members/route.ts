@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { userCanManageOrganization } from "@/lib/organization";
+import { MAX_MEMBER_ROLE_PER_ORGANIZATION } from "@/lib/organization-limits";
 
 type AddOrganizationMemberBody = {
   email?: string;
@@ -67,6 +68,21 @@ export async function POST(
       },
       { status: 409 },
     );
+  }
+
+  if (requestedRole === "MEMBER") {
+    const memberRoleCount = await prisma.organizationMember.count({
+      where: { organizationId, role: "MEMBER" },
+    });
+    if (memberRoleCount >= MAX_MEMBER_ROLE_PER_ORGANIZATION) {
+      return NextResponse.json(
+        {
+          error: "MEMBER_LIMIT_REACHED",
+          hint: `An organization can have at most ${MAX_MEMBER_ROLE_PER_ORGANIZATION} users with the Member role.`,
+        },
+        { status: 409 },
+      );
+    }
   }
 
   if (requestedRole === "ADMIN") {

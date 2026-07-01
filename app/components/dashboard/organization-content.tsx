@@ -1,6 +1,10 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import {
+  MAX_MEMBER_ROLE_PER_ORGANIZATION,
+  MAX_OWNED_ORGANIZATIONS,
+} from "@/lib/organization-limits";
 
 type OrgMember = {
   id: string;
@@ -24,11 +28,14 @@ type OrganizationRecord = {
 
 type OrganizationsResponse = {
   organizations: OrganizationRecord[];
+  ownedOrganizationCount: number;
 };
 
 export function OrganizationContent() {
   const [organizations, setOrganizations] = useState<OrganizationRecord[]>([]);
+  const [ownedOrganizationCount, setOwnedOrganizationCount] = useState(0);
   const [selectedOrganizationId, setSelectedOrganizationId] = useState("");
+  const [inviteRole, setInviteRole] = useState<"MEMBER" | "ADMIN">("MEMBER");
   const [loading, setLoading] = useState(true);
   const [creatingOrg, setCreatingOrg] = useState(false);
   const [addingMember, setAddingMember] = useState(false);
@@ -43,6 +50,7 @@ export function OrganizationContent() {
 
     const data = (await response.json()) as OrganizationsResponse;
     setOrganizations(data.organizations);
+    setOwnedOrganizationCount(data.ownedOrganizationCount ?? 0);
     if (!selectedOrganizationId && data.organizations.length > 0) {
       setSelectedOrganizationId(data.organizations[0].organization.id);
     }
@@ -61,11 +69,12 @@ export function OrganizationContent() {
 
   const onCreateOrganization = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const formEl = event.currentTarget;
     setCreatingOrg(true);
     setError(null);
     setMessage(null);
 
-    const form = new FormData(event.currentTarget);
+    const form = new FormData(formEl);
     const payload = { name: String(form.get("name") || "") };
 
     try {
@@ -76,10 +85,10 @@ export function OrganizationContent() {
         body: JSON.stringify(payload),
       });
       const data = (await response.json()) as { hint?: string; error?: string };
-      if (!response.ok) throw new Error(data.error || "Failed to create organization");
+      if (!response.ok) throw new Error(data.hint || data.error || "Failed to create organization");
 
       setMessage(data.hint || "Organization created.");
-      event.currentTarget.reset();
+      formEl.reset();
       await loadOrganizations();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create organization");
@@ -90,11 +99,12 @@ export function OrganizationContent() {
 
   const onAddMember = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const formEl = event.currentTarget;
     setAddingMember(true);
     setError(null);
     setMessage(null);
 
-    const form = new FormData(event.currentTarget);
+    const form = new FormData(formEl);
     const organizationId = String(form.get("organizationId") || "");
     const payload = {
       email: String(form.get("email") || ""),
@@ -115,7 +125,8 @@ export function OrganizationContent() {
       if (!response.ok) throw new Error(data.hint || data.error || "Failed to add member");
 
       setMessage(data.hint || "Member added successfully.");
-      event.currentTarget.reset();
+      formEl.reset();
+      setInviteRole("MEMBER");
       await loadOrganizations();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to add member");
@@ -127,6 +138,12 @@ export function OrganizationContent() {
   const selectedOrganization = organizations.find(
     (org) => org.organization.id === selectedOrganizationId,
   );
+  const selectedMemberRoleCount =
+    selectedOrganization?.organization.members.filter((m) => m.role === "MEMBER").length ?? 0;
+  const atMemberLimit =
+    inviteRole === "MEMBER" &&
+    selectedMemberRoleCount >= MAX_MEMBER_ROLE_PER_ORGANIZATION;
+  const atDepartmentLimit = ownedOrganizationCount >= MAX_OWNED_ORGANIZATIONS;
 
   if (loading) return <p className="text-sm text-zinc-600">Loading organizations...</p>;
 
@@ -139,6 +156,11 @@ export function OrganizationContent() {
           invite members. This tab is always open and never locked.
         </p>
         <p className="mt-2 text-sm text-zinc-600">
+          You can own at most {MAX_OWNED_ORGANIZATIONS} departments (organizations) and add at
+          most {MAX_MEMBER_ROLE_PER_ORGANIZATION} members per department (Member role; admins do
+          not count toward that cap).
+        </p>
+        <p className="mt-2 text-sm text-zinc-600">
           Cue: only one <strong>ADMIN</strong> is allowed per organization.
           Recommended admin is the account owner who created the organization.
         </p>
@@ -146,6 +168,11 @@ export function OrganizationContent() {
 
       <section className="rounded-2xl border border-border bg-white p-5 shadow-sm">
         <h2 className="text-lg font-semibold text-black">Create Organization</h2>
+        {atDepartmentLimit ? (
+          <p className="mt-2 text-sm text-amber-800">
+            You have reached the limit of {MAX_OWNED_ORGANIZATIONS} departments for your account.
+          </p>
+        ) : null}
         <form className="mt-4 flex flex-wrap items-center gap-3" onSubmit={onCreateOrganization}>
           <input
             name="name"
@@ -155,7 +182,7 @@ export function OrganizationContent() {
           />
           <button
             type="submit"
-            disabled={creatingOrg}
+            disabled={creatingOrg || atDepartmentLimit}
             className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-70"
           >
             {creatingOrg ? "Creating..." : "Create Organization"}
@@ -165,6 +192,12 @@ export function OrganizationContent() {
 
       <section className="rounded-2xl border border-border bg-white p-5 shadow-sm">
         <h2 className="text-lg font-semibold text-black">Add Organization Members</h2>
+        {atMemberLimit ? (
+          <p className="mt-2 text-sm text-amber-800">
+            This organization already has {MAX_MEMBER_ROLE_PER_ORGANIZATION} members. Choose
+            &quot;Admin&quot; to invite an admin instead, or use another department.
+          </p>
+        ) : null}
         <p className="mt-2 text-sm text-zinc-600">
           Cue: member must already have an account in the system. Add by email.
         </p>
@@ -193,13 +226,20 @@ export function OrganizationContent() {
             placeholder="member@email.com"
             className="rounded-lg border border-border px-3 py-2 text-sm"
           />
-          <select name="role" className="rounded-lg border border-border px-3 py-2 text-sm">
+          <select
+            name="role"
+            value={inviteRole}
+            onChange={(event) =>
+              setInviteRole(event.target.value === "ADMIN" ? "ADMIN" : "MEMBER")
+            }
+            className="rounded-lg border border-border px-3 py-2 text-sm"
+          >
             <option value="MEMBER">Member</option>
             <option value="ADMIN">Admin (only if none exists)</option>
           </select>
           <button
             type="submit"
-            disabled={addingMember || !selectedOrganizationId}
+            disabled={addingMember || !selectedOrganizationId || atMemberLimit}
             className="rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-900 disabled:opacity-70"
           >
             {addingMember ? "Adding..." : "Add Member"}
@@ -229,7 +269,9 @@ export function OrganizationContent() {
                 <ul className="mt-2 space-y-1 text-sm text-zinc-700">
                   {org.organization.members.map((member) => (
                     <li key={member.id}>
-                      {(member.user.name || member.user.email) + " - " + member.role}
+                      {(member.user?.name || member.user?.email || "Member") +
+                        " - " +
+                        member.role}
                     </li>
                   ))}
                 </ul>

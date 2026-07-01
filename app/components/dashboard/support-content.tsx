@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import {GettingStartedFaq} from "@/app/components/getting-started-faq";
 
 export function SupportContent() {
   const [loading, setLoading] = useState(false);
@@ -55,16 +56,10 @@ export function SupportContent() {
       </section>
 
       <section className="rounded-2xl border border-border bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-black">Help Articles (FAQ)</h2>
-        <ul className="mt-3 space-y-2 text-sm text-zinc-700">
-          <li>- How to set up your first organization and add members</li>
-          <li>- How subscription access works across organization members</li>
-          <li>- How to create invoices and track payment status</li>
-          <li>- How to categorize expense vs revenue entries correctly</li>
-        </ul>
+        <GettingStartedFaq />
       </section>
 
-      <section className="rounded-2xl border border-border bg-white p-5 shadow-sm">
+      {/* <section className="rounded-2xl border border-border bg-white p-5 shadow-sm">
         <h2 className="text-lg font-semibold text-black">Report an Issue (Ticket)</h2>
         <form className="mt-4 grid gap-3" onSubmit={submitTicket}>
           <input
@@ -99,15 +94,15 @@ export function SupportContent() {
         </form>
         {message ? <p className="mt-2 text-sm text-emerald-700">{message}</p> : null}
         {error ? <p className="mt-2 text-sm text-red-700">{error}</p> : null}
-      </section>
+      </section> */}
 
-      <section className="rounded-2xl border border-border bg-zinc-50 p-5">
+      {/* <section className="rounded-2xl border border-border bg-zinc-50 p-5">
         <h3 className="text-sm font-semibold text-black">Extra support ideas</h3>
         <p className="mt-2 text-sm text-zinc-600">
           You can add live chat, guided onboarding tours, release notes, and a status page
           so users always know where to get help.
         </p>
-      </section>
+      </section> */}
     </div>
   );
 }

@@ -1,5 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireUser } from "@/lib/auth";
+import {
+  databaseUnavailableResponse,
+  isDatabaseConnectionError,
+  withDatabaseRetry,
+} from "@/lib/db-connection-error";
+import {
+  hasAnyPaymentMethod,
+  invoicePaymentMethodSelect,
+} from "@/lib/invoice-payment-methods";
+import { getInvoiceStatusTotals } from "@/lib/invoice-list";
 import { prisma } from "@/lib/prisma";
 import { getUserTenantContext } from "@/lib/tenant-access";
 
@@ -61,59 +71,65 @@ export async function GET(req: NextRequest) {
       : {}),
   };
 
-  const [invoices, total] = await Promise.all([
-    prisma.invoice.findMany({
-      where,
-      include: {
-        client: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
+  try {
+    const invoices = await withDatabaseRetry(() =>
+      prisma.invoice.findMany({
+        where,
+        include: {
+          client: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          payments: {
+            select: {
+              id: true,
+              amount: true,
+              status: true,
+              createdAt: true,
+            },
+          },
+          items: {
+            select: {
+              id: true,
+              description: true,
+              quantity: true,
+              unitPrice: true,
+            },
           },
         },
-        payments: {
-          select: {
-            id: true,
-            amount: true,
-            status: true,
-            createdAt: true,
-          },
-        },
-        items: {
-          select: {
-            id: true,
-            description: true,
-            quantity: true,
-            unitPrice: true,
-          },
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    );
+
+    const [total, totals] = await Promise.all([
+      withDatabaseRetry(() => prisma.invoice.count({ where })),
+      getInvoiceStatusTotals(organizationIds),
+    ]);
+
+    return NextResponse.json(
+      {
+        invoices,
+        totals,
+        pagination: {
+          page,
+          pageSize,
+          total,
+          totalPages: Math.max(Math.ceil(total / pageSize), 1),
         },
       },
-      orderBy: { createdAt: "desc" },
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    }),
-    prisma.invoice.count({ where }),
-  ]);
-
-  const totals = {
-    paid: invoices.filter((invoice) => invoice.status === "PAID").length,
-    pending: invoices.filter((invoice) => invoice.status !== "PAID").length,
-  };
-
-  return NextResponse.json(
-    {
-      invoices,
-      totals,
-      pagination: {
-        page,
-        pageSize,
-        total,
-        totalPages: Math.max(Math.ceil(total / pageSize), 1),
-      },
-    },
-    { status: 200 },
-  );
+      { status: 200 },
+    );
+  } catch (error) {
+    if (isDatabaseConnectionError(error)) {
+      return databaseUnavailableResponse();
+    }
+    throw error;
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -171,15 +187,35 @@ export async function POST(req: NextRequest) {
         select: { id: true },
       });
 
+  const lastPaymentMethods = await prisma.invoice.findFirst({
+    where: {
+      organizationId: primaryOrganizationId,
+      OR: [
+        { paymentBankName: { not: null } },
+        { paymentAccountName: { not: null } },
+        { paymentAccountNumber: { not: null } },
+        { paymentSwiftCode: { not: null } },
+        { paymentOtherMethods: { not: null } },
+      ],
+    },
+    select: invoicePaymentMethodSelect,
+    orderBy: { updatedAt: "desc" },
+  });
+
+  const paymentPrefill =
+    lastPaymentMethods && hasAnyPaymentMethod(lastPaymentMethods)
+      ? lastPaymentMethods
+      : {};
+
   const invoice = await prisma.invoice.create({
     data: {
       organizationId: primaryOrganizationId,
       clientId: client.id,
       amount: amountInCents,
       currency: body?.currency?.trim().toLowerCase() || "usd",
-      status: "SENT",
+      status: "DRAFT",
       dueDate: body?.dueDate ? new Date(body.dueDate) : null,
-      sentAt: new Date(),
+      ...paymentPrefill,
       items: description
         ? {
             create: {

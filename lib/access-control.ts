@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { hasActiveMirrorSubscriptionForUserCached } from "@/lib/subscription-check";
 
 const TRIAL_PERIOD_DAYS = 3;
 const ACTIVE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
@@ -33,23 +34,7 @@ function calculateTrialInfo(createdAt: Date) {
 }
 
 async function hasStripeActiveSubscription(userId: string): Promise<boolean> {
-  try {
-    const rows = await prisma.$queryRaw<Array<{ has_active: boolean }>>`
-      SELECT EXISTS (
-        SELECT 1
-        FROM stripe.user_stripe_customers_map usc
-        JOIN stripe.subscriptions s 
-          ON s.customer = usc.stripe_customer_id
-        WHERE usc.user_id = ${userId}
-          AND LOWER(COALESCE(s.status, '')) IN ('active', 'trialing')
-      ) AS has_active
-    `;
-
-    return rows[0]?.has_active ?? false;
-  } catch {
-    // Keep access checks functional even if Stripe mirror tables are unavailable.
-    return false;
-  }
+  return hasActiveMirrorSubscriptionForUserCached(userId);
 }
 
 export async function hasActiveSubscription(userId: string): Promise<boolean> {

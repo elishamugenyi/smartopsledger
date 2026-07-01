@@ -95,10 +95,10 @@ export default function HomePage() {
 
         <div className="rounded-3xl border border-primary/20 bg-white p-6 shadow-2xl shadow-primary/20">
           <Image
-            src="/smartops_logo.png"
+            src="/smartops_joined.png"
             alt="SmartOps Ledger logo"
-            width={460}
-            height={320}
+            width={600}
+            height={329}
             className="mx-auto h-auto w-full max-w-sm"
             priority
           />

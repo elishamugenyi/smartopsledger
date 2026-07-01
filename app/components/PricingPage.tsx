@@ -8,6 +8,8 @@ interface PricingPageProps {
   plans: Plan[];
   currentPlanId?: string;
   currentInterval?: PriceInterval;
+  /** Logged-in account email; Stripe Checkout uses this via your billing session. */
+  accountEmail?: string;
   onError?: (error: Error) => void;
   /** Countdown duration in seconds before redirecting after plan switch (default: 5) */
   redirectCountdown?: number;
@@ -25,6 +27,7 @@ export function PricingPage({
   plans,
   currentPlanId,
   currentInterval = "month",
+  accountEmail,
   onError,
   redirectCountdown = 5,
 }: PricingPageProps) {
@@ -352,6 +355,20 @@ export function PricingPage({
           <p className="snw-pricing-subtitle">
             Start free, upgrade when you need more
           </p>
+          {accountEmail && (
+            <p
+              className="snw-pricing-account-email"
+              style={{
+                marginTop: "0.75rem",
+                fontSize: "0.9rem",
+                color: "var(--snw-text-muted)",
+              }}
+            >
+              Billing will use your account email{" "}
+              <strong style={{ color: "var(--snw-text)" }}>{accountEmail}</strong>{" "}
+              on Stripe Checkout so your plan links to this login.
+            </p>
+          )}
         </div>
 
         {hasMultipleIntervals && (

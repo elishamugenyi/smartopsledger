@@ -10,6 +10,27 @@ function getCustomerId(
   return typeof customer === "string" ? customer : customer.id;
 }
 
+async function getMappedUserIdForCustomer(customerId: string): Promise<string | null> {
+  const mappingTableCandidates = [
+    "stripe.user_stripe_customers_map",
+    "stripe.user_stripe_customer_map",
+  ] as const;
+
+  for (const tableName of mappingTableCandidates) {
+    try {
+      const rows = await prisma.$queryRawUnsafe<Array<{ user_id: string }>>(
+        `SELECT user_id FROM ${tableName} WHERE stripe_customer_id = $1 LIMIT 1`,
+        customerId,
+      );
+      if (rows.length > 0) return rows[0].user_id;
+    } catch {
+      // Table may not exist in this environment.
+    }
+  }
+
+  return null;
+}
+
 async function updateUserSubscriptionStatus(subscription: Stripe.Subscription) {
   const customerId = getCustomerId(subscription.customer);
   if (!customerId) return;
@@ -22,18 +43,16 @@ async function updateUserSubscriptionStatus(subscription: Stripe.Subscription) {
   if (updateResult.count > 0) return;
 
   // Fallback to usebilling's mapping table when local stripeCustomerId is not set.
-  await prisma.$executeRaw`
-    UPDATE public."User" u
-    SET
-      "stripeCustomerId" = ${customerId},
-      "subscriptionStatus" = ${subscription.status},
-      "updatedAt" = NOW()
-    WHERE u.id IN (
-      SELECT usc.user_id
-      FROM stripe.user_stripe_customers_map usc
-      WHERE usc.stripe_customer_id = ${customerId}
-    )
-  `;
+  const mappedUserId = await getMappedUserIdForCustomer(customerId);
+  if (!mappedUserId) return;
+
+  await prisma.user.update({
+    where: { id: mappedUserId },
+    data: {
+      stripeCustomerId: customerId,
+      subscriptionStatus: subscription.status,
+    },
+  });
 }
 
 // Initialize once, use everywhere (for credits/subscriptions API access)

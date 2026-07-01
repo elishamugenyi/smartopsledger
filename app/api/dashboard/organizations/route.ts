@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createOrganizationForUser } from "@/lib/organization";
+import { MAX_OWNED_ORGANIZATIONS } from "@/lib/organization-limits";
 
 type CreateOrganizationBody = {
   name?: string;
@@ -10,6 +11,10 @@ type CreateOrganizationBody = {
 export async function GET(req: NextRequest) {
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
+
+  const ownedOrganizationCount = await prisma.organization.count({
+    where: { ownerId: auth.user.id },
+  });
 
   const organizations = await prisma.organizationMember.findMany({
     where: { userId: auth.user.id },
@@ -40,7 +45,10 @@ export async function GET(req: NextRequest) {
     orderBy: { id: "asc" },
   });
 
-  return NextResponse.json({ organizations }, { status: 200 });
+  return NextResponse.json(
+    { organizations, ownedOrganizationCount },
+    { status: 200 },
+  );
 }
 
 export async function POST(req: NextRequest) {
@@ -57,6 +65,19 @@ export async function POST(req: NextRequest) {
         hint: "Use names like Finance, Sales, Accounting, Legal, or Sole.",
       },
       { status: 400 },
+    );
+  }
+
+  const ownedOrganizationCount = await prisma.organization.count({
+    where: { ownerId: auth.user.id },
+  });
+  if (ownedOrganizationCount >= MAX_OWNED_ORGANIZATIONS) {
+    return NextResponse.json(
+      {
+        error: "ORGANIZATION_LIMIT_REACHED",
+        hint: `You can create at most ${MAX_OWNED_ORGANIZATIONS} departments (organizations).`,
+      },
+      { status: 409 },
     );
   }
 

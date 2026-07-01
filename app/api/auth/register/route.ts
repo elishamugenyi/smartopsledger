@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createSession, hashPassword, withSessionCookie } from "@/lib/auth";
+import { isDatabaseConnectionError } from "@/lib/db-connection-error";
 
 type RegisterBody = {
   email?: string;
@@ -46,6 +47,15 @@ export async function POST(req: NextRequest) {
     const res = NextResponse.json({ user }, { status: 201 });
     return withSessionCookie(res, sessionToken, expires);
   } catch (err: unknown) {
+    if (isDatabaseConnectionError(err)) {
+      return NextResponse.json(
+        {
+          error: "DATABASE_UNAVAILABLE",
+          hint: "We cannot reach our servers right now. Check your internet connection and try again in a few minutes.",
+        },
+        { status: 503 },
+      );
+    }
     const message = err instanceof Error ? err.message : "Unknown error";
     if (message.includes("Unique constraint failed") || message.includes("P2002")) {
       return NextResponse.json({ error: "EMAIL_ALREADY_EXISTS" }, { status: 409 });

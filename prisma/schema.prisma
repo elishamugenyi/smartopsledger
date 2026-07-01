@@ -1,5 +1,3 @@
-//schema to handle scalability of the backend.
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,9 +7,190 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-///////////////////////
-// ENUMS
-///////////////////////
+model User {
+  id                           String               @id @default(cuid())
+  email                        String               @unique
+  password                     String?
+  name                         String?
+  createdAt                    DateTime             @default(now())
+  updatedAt                    DateTime             @updatedAt
+  stripeCustomerId             String?
+  subscriptionStatus           String?
+  subscriptionplan             String?              @db.VarChar(100)
+  subscriptioncurrentperiodend DateTime?            @db.Timestamp(6)
+  accounts                     Account[]
+  ownedOrganizations           Organization[]       @relation("OrgOwner")
+  organizations                OrganizationMember[]
+  passwordResetOtps            PasswordResetOtp[]
+  sessions                     Session[]
+}
+
+/// One-time codes for password reset. `codeHash` is a bcrypt hash of the 6-digit OTP (never store plaintext).
+model PasswordResetOtp {
+  id        String   @id @default(cuid())
+  userId    String
+  codeHash  String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  provider          String
+  providerAccountId String
+  access_token      String?
+  refresh_token     String?
+  user              User    @relation(fields: [userId], references: [id])
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  sessionToken String   @unique
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id])
+}
+
+model Organization {
+  id                          String               @id @default(cuid())
+  name                        String
+  ownerId                     String
+  createdAt                   DateTime             @default(now())
+  updatedAt                   DateTime             @updatedAt
+  stripeConnectAccountId      String?              @unique
+  stripeConnectChargesEnabled Boolean              @default(false)
+  stripeConnectPayoutsEnabled Boolean              @default(false)
+  automations                 AutomationRule[]
+  clients                     Client[]
+  events                      Event[]
+  expenses                    Expense[]
+  invoices                    Invoice[]
+  owner                       User                 @relation("OrgOwner", fields: [ownerId], references: [id])
+  members                     OrganizationMember[]
+}
+
+model OrganizationMember {
+  id             String       @id @default(cuid())
+  userId         String
+  organizationId String
+  role           Role         @default(MEMBER)
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  user           User         @relation(fields: [userId], references: [id])
+
+  @@unique([userId, organizationId])
+}
+
+model Client {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  email          String
+  phone          String?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  invoices       Invoice[]
+}
+
+model Invoice {
+  id                    String        @id @default(cuid())
+  organizationId        String
+  clientId              String
+  amount                Int
+  currency              String        @default("usd")
+  status                InvoiceStatus @default(DRAFT)
+  dueDate               DateTime?
+  sentAt                DateTime?
+  paidAt                DateTime?
+  stripeSessionId       String?
+  stripePaymentIntentId String?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  stripePaymentLinkId   String?
+  stripePaymentLinkUrl  String?
+  paymentBankName       String?
+  paymentAccountName    String?
+  paymentAccountNumber  String?
+  paymentSwiftCode      String?
+  paymentOtherMethods   String?
+  client                Client        @relation(fields: [clientId], references: [id])
+  organization          Organization  @relation(fields: [organizationId], references: [id])
+  items                 InvoiceItem[]
+  views                 InvoiceView[]
+  payments              Payment[]
+}
+
+model InvoiceItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  description String
+  quantity    Int
+  unitPrice   Int
+  invoice     Invoice @relation(fields: [invoiceId], references: [id])
+}
+
+model InvoiceView {
+  id        String   @id @default(cuid())
+  invoiceId String
+  viewedAt  DateTime @default(now())
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id])
+}
+
+model Payment {
+  id                    String        @id @default(cuid())
+  invoiceId             String
+  amount                Int
+  status                PaymentStatus @default(PENDING)
+  stripePaymentIntentId String?
+  createdAt             DateTime      @default(now())
+  invoice               Invoice       @relation(fields: [invoiceId], references: [id])
+}
+
+model Expense {
+  id             String       @id @default(cuid())
+  organizationId String
+  amount         Int
+  category       String
+  description    String?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+}
+
+model AutomationRule {
+  id             String                @id @default(cuid())
+  organizationId String
+  name           String
+  triggerType    EventType
+  conditions     Json
+  actions        Json
+  isActive       Boolean               @default(true)
+  createdAt      DateTime              @default(now())
+  executions     AutomationExecution[]
+  organization   Organization          @relation(fields: [organizationId], references: [id])
+}
+
+model AutomationExecution {
+  id         String         @id @default(cuid())
+  ruleId     String
+  status     String
+  executedAt DateTime       @default(now())
+  rule       AutomationRule @relation(fields: [ruleId], references: [id])
+}
+
+model Event {
+  id             String       @id @default(cuid())
+  organizationId String
+  type           EventType
+  payload        Json
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+}
 
 enum Role {
   OWNER
@@ -41,246 +220,4 @@ enum EventType {
   INVOICE_PAID
   INVOICE_OVERDUE
   EXPENSE_CREATED
-}
-
-///////////////////////
-// AUTH + USERS
-///////////////////////
-
-model User {
-  id            String   @id @default(cuid())
-  email         String   @unique
-  password      String?  // nullable if OAuth
-  name          String?
-
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  // Stripe (SaaS billing)
-  stripeCustomerId     String?
-  subscriptionStatus   String? // active, trialing, cancelled
-
-  // RELATIONS
-  organizations        OrganizationMember[]
-  ownedOrganizations   Organization[] @relation("OrgOwner")
-
-  accounts             Account[]
-  sessions             Session[]
-  passwordResetOtps    PasswordResetOtp[]
-}
-
-/// One-time codes for password reset. `codeHash` is a bcrypt hash of the 6-digit OTP (never store plaintext).
-model PasswordResetOtp {
-  id         String   @id @default(cuid())
-  userId     String
-  codeHash   String
-  createdAt  DateTime @default(now())
-  expiresAt  DateTime
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([expiresAt])
-}
-
-model Account {
-  id                String  @id @default(cuid())
-  userId            String
-  provider          String  // github, google, credentials
-  providerAccountId String
-  access_token      String?
-  refresh_token     String?
-
-  user              User @relation(fields: [userId], references: [id])
-
-  @@unique([provider, providerAccountId])
-}
-
-model Session {
-  id           String   @id @default(cuid())
-  userId       String
-  sessionToken String   @unique
-  expires      DateTime
-
-  user         User @relation(fields: [userId], references: [id])
-}
-
-///////////////////////
-// ORGANIZATION
-///////////////////////
-
-model Organization {
-  id            String   @id @default(cuid())
-  name          String
-
-  ownerId       String
-  owner         User @relation("OrgOwner", fields: [ownerId], references: [id])
-
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  members       OrganizationMember[]
-  invoices      Invoice[]
-  expenses      Expense[]
-  automations   AutomationRule[]
-  events        Event[]
-  clients       Client[]
-}
-
-model OrganizationMember {
-  id              String   @id @default(cuid())
-  userId          String
-  organizationId  String
-  role            Role     @default(MEMBER)
-
-  user            User         @relation(fields: [userId], references: [id])
-  organization    Organization @relation(fields: [organizationId], references: [id])
-
-  @@unique([userId, organizationId])
-}
-
-///////////////////////
-// CLIENTS
-///////////////////////
-
-model Client {
-  id              String   @id @default(cuid())
-  organizationId  String
-  name            String
-  email           String
-  phone           String?
-
-  organization    Organization @relation(fields: [organizationId], references: [id])
-
-  invoices        Invoice[]
-
-  createdAt       DateTime @default(now())
-}
-
-///////////////////////
-// INVOICES
-///////////////////////
-
-model Invoice {
-  id                String         @id @default(cuid())
-  organizationId    String
-  clientId          String
-
-  amount            Int
-  currency          String         @default("usd")
-
-  status            InvoiceStatus  @default(DRAFT)
-  dueDate           DateTime?
-  sentAt            DateTime?
-  paidAt            DateTime?
-
-  stripeSessionId           String?
-  stripePaymentIntentId     String?
-
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  organization      Organization @relation(fields: [organizationId], references: [id])
-  client            Client       @relation(fields: [clientId], references: [id])
-
-  items             InvoiceItem[]
-  payments          Payment[]
-  views             InvoiceView[]
-}
-
-model InvoiceItem {
-  id          String  @id @default(cuid())
-  invoiceId   String
-  description String
-  quantity    Int
-  unitPrice   Int
-
-  invoice     Invoice @relation(fields: [invoiceId], references: [id])
-}
-
-model InvoiceView {
-  id          String   @id @default(cuid())
-  invoiceId   String
-  viewedAt    DateTime @default(now())
-
-  invoice     Invoice  @relation(fields: [invoiceId], references: [id])
-}
-
-///////////////////////
-// PAYMENTS
-///////////////////////
-
-model Payment {
-  id        String        @id @default(cuid())
-  invoiceId String
-  amount    Int
-  status    PaymentStatus @default(PENDING)
-
-  stripePaymentIntentId String?
-
-  createdAt DateTime @default(now())
-
-  invoice   Invoice @relation(fields: [invoiceId], references: [id])
-}
-
-///////////////////////
-// EXPENSES
-///////////////////////
-
-model Expense {
-  id              String   @id @default(cuid())
-  organizationId  String
-  amount          Int
-  category        String
-  description     String?
-
-  createdAt       DateTime @default(now())
-
-  organization    Organization @relation(fields: [organizationId], references: [id])
-}
-
-///////////////////////
-// AUTOMATION
-///////////////////////
-
-model AutomationRule {
-  id              String   @id @default(cuid())
-  organizationId  String
-
-  name            String
-  triggerType     EventType
-
-  conditions      Json
-  actions         Json
-
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-
-  organization    Organization @relation(fields: [organizationId], references: [id])
-
-  executions      AutomationExecution[]
-}
-
-model AutomationExecution {
-  id          String   @id @default(cuid())
-  ruleId      String
-  status      String
-  executedAt  DateTime @default(now())
-
-  rule        AutomationRule @relation(fields: [ruleId], references: [id])
-}
-
-///////////////////////
-// EVENTS
-///////////////////////
-
-model Event {
-  id              String    @id @default(cuid())
-  organizationId  String
-  type            EventType
-  payload         Json
-
-  createdAt       DateTime  @default(now())
-
-  organization    Organization @relation(fields: [organizationId], references: [id])
 }

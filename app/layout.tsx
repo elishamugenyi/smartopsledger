@@ -1,7 +1,18 @@
 import type { Metadata } from "next";
+import { ThemeProvider } from "@/app/components/theme-provider";
 import "./globals.css";
-import { SiteHeader } from "@/app/components/site-header";
-import { SiteFooter } from "@/app/components/site-footer";
+
+const themeInitScript = `
+(function () {
+  try {
+    var theme = localStorage.getItem("theme");
+    var isDark =
+      theme === "dark" ||
+      (!theme && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    document.documentElement.classList.toggle("dark", isDark);
+  } catch (e) {}
+})();
+`;
 
 export const metadata: Metadata = {
   title: "SmartOps Ledger",
@@ -15,13 +26,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full antialiased">
+    <html lang="en" className="h-full antialiased" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
       <body className="min-h-full bg-background text-foreground">
-        <div className="flex min-h-screen flex-col">
-          <SiteHeader />
-          <main className="flex-1">{children}</main>
-          <SiteFooter />
-        </div>
+        <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
   );

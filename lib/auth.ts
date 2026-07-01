@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
+import { isDatabaseConnectionError } from "@/lib/db-connection-error";
 import { prisma } from "@/lib/prisma";
 
 const SESSION_COOKIE_NAME = "sol_session";
@@ -82,18 +83,27 @@ export async function getUserFromRequest(req: NextRequest) {
   const token = req.cookies.get(SESSION_COOKIE_NAME)?.value;
   if (!token) return null;
 
-  const session = await prisma.session.findUnique({
-    where: { sessionToken: token },
-    include: { user: true },
-  });
+  try {
+    const session = await prisma.session.findUnique({
+      where: { sessionToken: token },
+      include: { user: true },
+    });
 
-  if (!session) return null;
-  if (session.expires.getTime() <= Date.now()) {
-    await prisma.session.delete({ where: { sessionToken: token } });
-    return null;
+    if (!session) return null;
+    if (session.expires.getTime() <= Date.now()) {
+      try {
+        await prisma.session.delete({ where: { sessionToken: token } });
+      } catch {
+        // Ignore delete errors (e.g. DB unavailable).
+      }
+      return null;
+    }
+
+    return session.user;
+  } catch (err: unknown) {
+    if (isDatabaseConnectionError(err)) return null;
+    throw err;
   }
-
-  return session.user;
 }
 
 export async function requireUser(req: NextRequest) {

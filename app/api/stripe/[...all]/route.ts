@@ -13,7 +13,14 @@ export const POST = billing.createHandler({
     });
     const user = await getUserFromRequest(nextRequest);
 
-    // This id is used by usebilling for customer mapping (user_id <-> stripe_customer_id).
-    return user ? { id: user.id } : null;
+    // usebilling passes `email` / `name` into Stripe when creating customers and
+    // binds Checkout to that customer so the billing email matches the login email.
+    return user
+      ? {
+          id: user.id,
+          email: user.email,
+          name: user.name ?? undefined,
+        }
+      : null;
   },
 });

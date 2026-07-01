@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { PasswordResetModal } from "@/app/components/auth/password-reset-modal";
+import { PaymentsConnectSettings } from "@/app/components/dashboard/payments-connect-settings";
+import { ThemeSelector } from "@/app/components/dashboard/theme-selector";
 
 type SettingsContentProps = {
   profile: {
@@ -10,51 +12,56 @@ type SettingsContentProps = {
     createdAt: string;
     subscriptionStatus: string | null;
   };
+  paymentsConnect: {
+    organizations: Array<{ id: string; name: string }>;
+    defaultOrganizationId: string | null;
+    canManage: boolean;
+  };
 };
 
-export function SettingsContent({ profile }: SettingsContentProps) {
+export function SettingsContent({ profile, paymentsConnect }: SettingsContentProps) {
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
 
   return (
     <div className="space-y-5">
-      <section className="rounded-2xl border border-border bg-white p-5 shadow-sm">
-        <h1 className="text-2xl font-bold text-black">Settings</h1>
-        <p className="mt-2 text-sm text-zinc-600">
+      <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+        <h1 className="text-2xl font-bold text-foreground">Settings</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
           Manage your profile and account security so your team always stays in control.
         </p>
       </section>
 
-      <section className="rounded-2xl border border-border bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-black">View Profile</h2>
+      <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+        <h2 className="text-lg font-semibold text-foreground">View Profile</h2>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <article className="rounded-lg border border-border p-3">
-            <p className="text-xs uppercase tracking-wide text-zinc-500">Name</p>
-            <p className="mt-1 text-sm font-medium text-black">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Name</p>
+            <p className="mt-1 text-sm font-medium text-foreground">
               {profile.name || "Not set"}
             </p>
           </article>
           <article className="rounded-lg border border-border p-3">
-            <p className="text-xs uppercase tracking-wide text-zinc-500">Email</p>
-            <p className="mt-1 text-sm font-medium text-black">{profile.email}</p>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Email</p>
+            <p className="mt-1 text-sm font-medium text-foreground">{profile.email}</p>
           </article>
           <article className="rounded-lg border border-border p-3">
-            <p className="text-xs uppercase tracking-wide text-zinc-500">Subscription</p>
-            <p className="mt-1 text-sm font-medium text-black">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Subscription</p>
+            <p className="mt-1 text-sm font-medium text-foreground">
               {profile.subscriptionStatus || "None"}
             </p>
           </article>
           <article className="rounded-lg border border-border p-3">
-            <p className="text-xs uppercase tracking-wide text-zinc-500">Joined</p>
-            <p className="mt-1 text-sm font-medium text-black">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Joined</p>
+            <p className="mt-1 text-sm font-medium text-foreground">
               {new Date(profile.createdAt).toLocaleDateString()}
             </p>
           </article>
         </div>
       </section>
 
-      <section className="rounded-2xl border border-border bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-black">Change Password</h2>
-        <p className="mt-2 text-sm text-zinc-600">
+      <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+        <h2 className="text-lg font-semibold text-foreground">Change Password</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
           Use the current OTP password reset flow to securely update your password.
         </p>
         <button
@@ -66,12 +73,29 @@ export function SettingsContent({ profile }: SettingsContentProps) {
         </button>
       </section>
 
-      <section className="rounded-2xl border border-border bg-zinc-50 p-5">
-        <h3 className="text-sm font-semibold text-black">Useful next settings to add</h3>
-        <p className="mt-2 text-sm text-zinc-600">
-          You can add notification preferences, session/device management, two-factor
-          authentication, theme/display preferences, and default organization selection.
+      <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+        <h2 className="text-lg font-semibold text-foreground">Invoice payments (Stripe Connect)</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Connect your Stripe account so clients can pay invoices online. Funds go to your Stripe
+          account; SmartOps Ledger collects a platform fee on each payment.
         </p>
+        <Suspense fallback={<p className="mt-4 text-sm text-muted-foreground">Loading payments...</p>}>
+          <PaymentsConnectSettings
+            organizations={paymentsConnect.organizations}
+            defaultOrganizationId={paymentsConnect.defaultOrganizationId}
+            canManage={paymentsConnect.canManage}
+          />
+        </Suspense>
+      </section>
+
+      <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+        <h2 className="text-lg font-semibold text-foreground">Appearance</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Choose light or dark mode for the dashboard. Your preference is saved on this device.
+        </p>
+        <div className="mt-4">
+          <ThemeSelector />
+        </div>
       </section>
 
       <PasswordResetModal
