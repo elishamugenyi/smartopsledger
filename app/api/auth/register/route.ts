@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createSession, hashPassword, withSessionCookie } from "@/lib/auth";
 import { isDatabaseConnectionError } from "@/lib/db-connection-error";
+import { sendWelcomeEmail } from "@/lib/welcome-email";
 
 type RegisterBody = {
   email?: string;
@@ -44,6 +45,10 @@ export async function POST(req: NextRequest) {
     });
 
     const { sessionToken, expires } = await createSession(user.id);
+
+    // Welcome email should not block registration if sending fails
+    await sendWelcomeEmail(email, user.name ?? "");
+
     const res = NextResponse.json({ user }, { status: 201 });
     return withSessionCookie(res, sessionToken, expires);
   } catch (err: unknown) {
